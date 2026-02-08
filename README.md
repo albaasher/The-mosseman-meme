@@ -31,4 +31,6 @@ This branch contains intermediate versions created during development.
 6. Final version → moved to `main` branch
 
 ## Notes
-These versions are kept for reference and learning purposes. For the final working version, see the `main` branch.
+These versions are kept for documenting purposes. For the final working version, see the `main` branch.
+
+*Claude did most of the heavy lefting but most regarding where and how the lines are displayed and how the car moves and also the timing of the subtitles was done manually*
