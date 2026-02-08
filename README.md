@@ -1,2 +1,6 @@
 # The-mosseman-meme
-A javascript recreation of the once viral tiktok meme labeled the mooseman, depicting some 2D GTA 5 car gameplay with a funny dialogue
+At first, I was talking with my friend about doing something to contribute to the trend, and he came up with the idea of using code. He didn't have a Windows machine though, so he sent me Python code he got from Gemini through plain text. I tested it and I must say, even as someone who doesn't know Python or JavaScript, it was BAD. It didn't even work at first, so I used Claude, and when it finally worked, it was an absolute mess. The turtle didn't move correctly, the black roads were all over the place, and there was no text at first.
+
+I tried to solve all those problems using Claude, but it didn't manage a lot of them, like sometimes the text just flow off on its own, the window was either cropped or zoomed in, and some major imperfections. everything it put out wasn't satisfactory. So I again resorted to inputting the numbers myself. It was a simple process of reading the comments to find which value to change, and also copying a few lines if I needed a new road, for example. After this, it was OK-ish, but it didn't work on mobile, so we switched to JavaScript/HTML.
+
+However That came with its own problems that needed solving, often by changing the values manually to match the image I wanted. But after all of this was said and done, Claude added the audio, and with some manual fine-tuning, it finally became a version I'm satisfied with.
