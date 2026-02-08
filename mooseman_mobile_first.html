@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Mooseman Driving</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #f0f0f0;
+        }
+        
+        #app {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            background: white;
+        }
+        
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        .subtitle {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            max-width: 80vw;
+            line-height: 1.4;
+            word-wrap: break-word;
+            display: none;
+            z-index: 10;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        #startBtn {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 50px;
+            font-size: 24px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            z-index: 100;
+            font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        
+        #resetBtn {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 40px;
+            font-size: 18px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            display: none;
+            z-index: 100;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <canvas id="canvas"></canvas>
+        <div id="subtitle" class="subtitle"></div>
+        <button id="startBtn">START</button>
+        <button id="resetBtn">PLAY AGAIN</button>
+        <audio id="audio" src="mooseman_audio.mp3"></audio>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const subtitleEl = document.getElementById('subtitle');
+        const audioEl = document.getElementById('audio');
+        
+        // Set canvas to match device pixels
+        function setupCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            
+            ctx.scale(dpr, dpr);
+            
+            // Store display dimensions
+            canvas.displayWidth = rect.width;
+            canvas.displayHeight = rect.height;
+        }
+        
+        // Animation state
+        let animating = false;
+        let startTime = 0;
+        
+        // Car state (using percentage-based coordinates)
+        let carX = 0; // 0-100%
+        let carY = 0; // 0-100%
+        let carAngle = 0;
+        let path = [];
+        
+        // Dialogue with timing
+        const dialogue = [
+            { start: 0.5, end: 1.8, text: "Let me drive my shit" },
+            { start: 2.0, end: 2.8, text: "Nah bro" },
+            { start: 3.0, end: 3.5, text: "You good" },
+            { start: 3.7, end: 4.2, text: "You good" },
+            { start: 4.4, end: 4.9, text: "You good" },
+            { start: 5.0, end: 7.5, text: "I know my route bro, I know my routes" },
+            { start: 8.0, end: 10.5, text: "It look like you about to take us to find the mooseman" },
+            { start: 10.7, end: 13.0, text: "Who the hell is the moose man?" }
+        ];
+        
+        // Convert percentage to pixels
+        function pctToX(pct) {
+            return (pct / 100) * canvas.displayWidth;
+        }
+        
+        function pctToY(pct) {
+            return (pct / 100) * canvas.displayHeight;
+        }
+        
+        // Draw roads (using percentages)
+        function drawRoads() {
+            const w = canvas.displayWidth;
+            const h = canvas.displayHeight;
+            
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = Math.max(8, w * 0.01);
+            ctx.lineCap = 'round';
+            
+            // Top road 1 (horizontal)
+            ctx.beginPath();
+            ctx.moveTo(w * 0.05, h * 0.25);
+            ctx.lineTo(w * 0.45, h * 0.25);
+            ctx.stroke();
+            
+            // Top road 2 (angled)
+            ctx.beginPath();
+            ctx.moveTo(w * 0.45, h * 0.25);
+            ctx.lineTo(w * 0.55, h * 0.35);
+            ctx.stroke();
+            
+            // Bottom road 4 (angled up)
+            ctx.beginPath();
+            ctx.moveTo(w * 0.55, h * 0.65);
+            ctx.lineTo(w * 0.85, h * 0.55);
+            ctx.stroke();
+            
+            // Bottom road 3 (horizontal)
+            ctx.beginPath();
+            ctx.moveTo(w * 0.25, h * 0.65);
+            ctx.lineTo(w * 0.55, h * 0.65);
+            ctx.stroke();
+            
+            // Bottom road 2 (angled)
+            ctx.beginPath();
+            ctx.moveTo(w * 0.15, h * 0.75);
+            ctx.lineTo(w * 0.25, h * 0.70);
+            ctx.stroke();
+            
+            // Bottom road 1 (horizontal)
+            ctx.beginPath();
+            ctx.moveTo(w * 0.05, h * 0.75);
+            ctx.lineTo(w * 0.30, h * 0.75);
+            ctx.stroke();
+        }
+        
+        // Draw car
+        function drawCar() {
+            const x = pctToX(carX);
+            const y = pctToY(carY);
+            const size = Math.max(20, canvas.displayWidth * 0.025);
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(-carAngle * Math.PI / 180);
+            
+            ctx.fillStyle = 'blue';
+            ctx.fillRect(-size * 0.75, -size * 0.5, size * 1.5, size);
+            
+            ctx.restore();
+        }
+        
+        // Draw path
+        function drawPath() {
+            if (path.length < 2) return;
+            
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = Math.max(8, canvas.displayWidth * 0.01);
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            ctx.beginPath();
+            ctx.moveTo(pctToX(path[0].x), pctToY(path[0].y));
+            
+            for (let i = 1; i < path.length; i++) {
+                ctx.lineTo(pctToX(path[i].x), pctToY(path[i].y));
+            }
+            
+            ctx.stroke();
+        }
+        
+        // Update subtitle
+        function updateSubtitle() {
+            const elapsed = (Date.now() - startTime) / 1000;
+            
+            let current = null;
+            for (const line of dialogue) {
+                if (elapsed >= line.start && elapsed <= line.end) {
+                    current = line;
+                    break;
+                }
+            }
+            
+            if (current) {
+                subtitleEl.textContent = current.text;
+                subtitleEl.style.display = 'block';
+                
+                // Position above car
+                const y = pctToY(carY);
+                subtitleEl.style.top = Math.max(10, y - 70) + 'px';
+            } else {
+                subtitleEl.style.display = 'none';
+            }
+        }
+        
+        // Animation segments (percentage-based movements)
+        const segments = [
+            { type: 'forward', distance: 35 },
+            { type: 'right', angle: 30 },
+            { type: 'forward', distance: 15 },
+            { type: 'left', angle: 8 },
+            { type: 'forward', distance: 12 },
+            { type: 'right', angle: 30 },
+            { type: 'forward', distance: 8 },
+            { type: 'right', angle: 80 },
+            { type: 'forward', distance: 8 },
+            { type: 'right', angle: 20 },
+            { type: 'forward', distance: 6 },
+            { type: 'setheading', angle: 180 },
+            { type: 'forward', distance: 25 },
+            { type: 'left', angle: 20 },
+            { type: 'forward', distance: 10 },
+            { type: 'left', angle: 20 },
+            { type: 'forward', distance: 8 },
+            { type: 'setheading', angle: 180 },
+            { type: 'forward', distance: 15 }
+        ];
+        
+        let segmentIndex = 0;
+        let segmentProgress = 0;
+        let segmentStartX = 0;
+        let segmentStartY = 0;
+        
+        function animate() {
+            if (!animating) return;
+            
+            // Clear
+            ctx.clearRect(0, 0, canvas.displayWidth, canvas.displayHeight);
+            
+            // Draw
+            drawRoads();
+            drawPath();
+            drawCar();
+            updateSubtitle();
+            
+            // Process segment
+            if (segmentIndex < segments.length) {
+                const seg = segments[segmentIndex];
+                
+                if (seg.type === 'right') {
+                    carAngle -= seg.angle;
+                    segmentIndex++;
+                } else if (seg.type === 'left') {
+                    carAngle += seg.angle;
+                    segmentIndex++;
+                } else if (seg.type === 'setheading') {
+                    carAngle = seg.angle;
+                    segmentIndex++;
+                } else if (seg.type === 'forward') {
+                    if (segmentProgress === 0) {
+                        segmentStartX = carX;
+                        segmentStartY = carY;
+                    }
+                    
+                    segmentProgress += 0.3;
+                    
+                    if (segmentProgress >= seg.distance) {
+                        segmentProgress = seg.distance;
+                    }
+                    
+                    const rad = carAngle * Math.PI / 180;
+                    carX = segmentStartX + segmentProgress * Math.cos(rad);
+                    carY = segmentStartY + segmentProgress * Math.sin(rad);
+                    
+                    path.push({ x: carX, y: carY });
+                    
+                    if (segmentProgress >= seg.distance) {
+                        segmentIndex++;
+                        segmentProgress = 0;
+                    }
+                }
+                
+                requestAnimationFrame(animate);
+            } else {
+                animating = false;
+                document.getElementById('resetBtn').style.display = 'block';
+            }
+        }
+        
+        function start() {
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('resetBtn').style.display = 'none';
+            
+            animating = true;
+            startTime = Date.now();
+            segmentIndex = 0;
+            segmentProgress = 0;
+            path = [];
+            
+            // Starting position (percentage)
+            carX = 10;
+            carY = 18;
+            carAngle = 0;
+            
+            path.push({ x: carX, y: carY });
+            
+            audioEl.currentTime = 0;
+            audioEl.play().catch(e => console.log('Audio error:', e));
+            
+            animate();
+        }
+        
+        document.getElementById('startBtn').onclick = start;
+        document.getElementById('resetBtn').onclick = start;
+        
+        window.onload = function() {
+            setupCanvas();
+            drawRoads();
+        };
+        
+        window.onresize = function() {
+            setupCanvas();
+            if (!animating) drawRoads();
+        };
+    </script>
+</body>
+</html>
