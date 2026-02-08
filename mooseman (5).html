@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mooseman Driving</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        
+        #container {
+            background: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        canvas {
+            display: block;
+            background: white;
+        }
+        
+        .subtitle {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-size: 13px;
+            font-weight: bold;
+            pointer-events: none;
+            max-width: 250px;
+            text-align: center;
+            display: none;
+            transform: translateX(-50%);
+            white-space: nowrap;
+        }
+        
+        @media (max-width: 768px) {
+            #container {
+                width: 100vw !important;
+                height: 100vh !important;
+            }
+            
+            canvas {
+                width: 100% !important;
+                height: 100% !important;
+            }
+            
+            .subtitle {
+                font-size: 11px;
+                padding: 4px 10px;
+                max-width: 200px;
+            }
+        }
+        
+        #resetBtn {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none;
+        }
+        
+        #resetBtn:hover {
+            background: #cc0000;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="subtitle" class="subtitle"></div>
+        <canvas id="canvas" width="1200" height="700"></canvas>
+        <button id="startBtn" onclick="startExperience()" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px 40px; font-size: 20px; background: #ff4444; color: white; border: none; border-radius: 10px; cursor: pointer; z-index: 100;">START</button>
+        <button id="resetBtn" onclick="resetAnimation()">Play Again</button>
+        <audio id="audio" src="mooseman_audio.mp3"></audio>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const audioElement = document.getElementById('audio');
+        const subtitleElement = document.getElementById('subtitle');
+        
+        // Subtitle timing (based on audio timestamps)
+        const subtitles = [
+            { start: 0.5, end: 1.8, text: "Let me drive my shit" },
+            { start: 2.0, end: 2.8, text: "Nah bro" },
+            { start: 3.0, end: 3.5, text: "You good" },
+            { start: 3.7, end: 4.2, text: "You good" },
+            { start: 4.4, end: 4.9, text: "You good" },
+            { start: 5.0, end: 7.5, text: "I know my route bro, I know my routes" },
+            { start: 8.0, end: 10.5, text: "It look like you about to take us to find the moose man" },
+            { start: 10.7, end: 13.0, text: "Who the hell is the moose man?" }
+        ];
+        
+        let animationStartTime = 0;
+        
+        // Animation state
+        let animationRunning = false;
+        let animationComplete = false;
+        
+        // Car/turtle state
+        let carX = 0;
+        let carY = 0;
+        let carAngle = 0; // in degrees
+        
+        // Path recording for drawing
+        let pathPoints = [];
+        
+        // Convert canvas coordinates (top-left origin) to turtle coordinates (center origin)
+        function toCanvasX(turtleX) {
+            return turtleX + 600; // canvas width / 2
+        }
+        
+        function toCanvasY(turtleY) {
+            return 350 - turtleY; // canvas height / 2, inverted Y
+        }
+        
+        // Draw the black roads
+        function drawRoads() {
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 15;
+            ctx.lineCap = 'round';
+            
+            // TOP ROAD 1
+            ctx.beginPath();
+            ctx.moveTo(toCanvasX(-550), toCanvasY(50));
+            ctx.lineTo(toCanvasX(-550 + 420), toCanvasY(50));
+            ctx.stroke();
+            
+            // TOP ROAD 2 (angled -40 degrees)
+            ctx.beginPath();
+            ctx.moveTo(toCanvasX(-130), toCanvasY(50));
+            let angle2 = -40 * Math.PI / 180;
+            ctx.lineTo(toCanvasX(-130 + 80 * Math.cos(angle2)), toCanvasY(50 + 80 * Math.sin(angle2)));
+            ctx.stroke();
+            
+            // BOTTOM ROAD 4 (angled 40 degrees)
+            ctx.beginPath();
+            ctx.moveTo(toCanvasX(120), toCanvasY(-150));
+            let angle4 = 40 * Math.PI / 180;
+            ctx.lineTo(toCanvasX(120 + 280 * Math.cos(angle4)), toCanvasY(-150 + 280 * Math.sin(angle4)));
+            ctx.stroke();
+            
+            // BOTTOM ROAD 3
+            ctx.beginPath();
+            ctx.moveTo(toCanvasX(-150), toCanvasY(-150));
+            ctx.lineTo(toCanvasX(-150 + 280), toCanvasY(-150));
+            ctx.stroke();
+            
+            // BOTTOM ROAD 2 (angled 35 degrees)
+            ctx.beginPath();
+            ctx.moveTo(toCanvasX(-260), toCanvasY(-220));
+            let angle2b = 35 * Math.PI / 180;
+            ctx.lineTo(toCanvasX(-260 + 140 * Math.cos(angle2b)), toCanvasY(-220 + 140 * Math.sin(angle2b)));
+            ctx.stroke();
+            
+            // BOTTOM ROAD 1
+            ctx.beginPath();
+            ctx.moveTo(toCanvasX(-520), toCanvasY(-220));
+            ctx.lineTo(toCanvasX(-520 + 270), toCanvasY(-220));
+            ctx.stroke();
+        }
+        
+        // Draw the car (blue square) - BIGGER SIZE
+        function drawCar(x, y, angle) {
+            ctx.save();
+            ctx.translate(toCanvasX(x), toCanvasY(y));
+            // Turtle: 0°=right, 90°=up (counterclockwise)
+            // Canvas: 0°=right, -90°=up (clockwise, Y-inverted)
+            // So we need to negate the angle
+            ctx.rotate(-angle * Math.PI / 180);
+            
+            ctx.fillStyle = 'blue';
+            ctx.fillRect(-22.5, -15, 45, 30); // Bigger: 1.5x scale (was 30x20)
+            
+            ctx.restore();
+        }
+        
+        // Draw the red path
+        function drawPath() {
+            if (pathPoints.length < 2) return;
+            
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 15;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            ctx.beginPath();
+            ctx.moveTo(toCanvasX(pathPoints[0].x), toCanvasY(pathPoints[0].y));
+            
+            for (let i = 1; i < pathPoints.length; i++) {
+                ctx.lineTo(toCanvasX(pathPoints[i].x), toCanvasY(pathPoints[i].y));
+            }
+            
+            ctx.stroke();
+        }
+        
+        // Update subtitle position and text
+        function updateSubtitle() {
+            const currentTime = (Date.now() - animationStartTime) / 1000; // seconds
+            
+            // Find active subtitle
+            let activeSubtitle = null;
+            for (const sub of subtitles) {
+                if (currentTime >= sub.start && currentTime <= sub.end) {
+                    activeSubtitle = sub;
+                    break;
+                }
+            }
+            
+            if (activeSubtitle) {
+                subtitleElement.textContent = activeSubtitle.text;
+                subtitleElement.style.display = 'block';
+                
+                // Get container bounding rect for proper positioning
+                const container = document.getElementById('container');
+                const rect = container.getBoundingClientRect();
+                
+                // Position subtitle above the car (relative to canvas)
+                const canvasX = toCanvasX(carX);
+                const canvasY = toCanvasY(carY);
+                
+                // Clamp position to stay within bounds
+                const maxX = canvas.width - 125; // half of max subtitle width
+                const minX = 125;
+                const clampedX = Math.max(minX, Math.min(maxX, canvasX));
+                
+                subtitleElement.style.left = clampedX + 'px';
+                subtitleElement.style.top = (canvasY - 40) + 'px'; // Fixed offset above car
+            } else {
+                subtitleElement.style.display = 'none';
+            }
+        }
+        
+        // Animation segments matching the Python code
+        const segments = [
+            // SEGMENT 1: Go right
+            { type: 'forward', distance: 400 },
+            
+            // SEGMENT 2: Drop down diagonally
+            { type: 'right', angle: 30 },
+            { type: 'forward', distance: 150 },
+            
+            // SEGMENT 2.1
+            { type: 'left', angle: 8 },
+            { type: 'forward', distance: 140 },
+            
+            // SEGMENT 2.2
+            { type: 'right', angle: 30 },
+            { type: 'forward', distance: 60 },
+            
+            // SEGMENT 2.3
+            { type: 'right', angle: 80 },
+            { type: 'forward', distance: 60 },
+            
+            // SEGMENT 2.4
+            { type: 'right', angle: 20 },
+            { type: 'forward', distance: 40 },
+            
+            // SEGMENT 3: Transition to BOTTOM ROAD 3
+            { type: 'setheading', angle: 180 },
+            { type: 'forward', distance: 260 },
+            
+            // SEGMENT 4: Drive along BOTTOM ROAD 3
+            { type: 'left', angle: 20 },
+            { type: 'forward', distance: 100 },
+            
+            // SEGMENT 4.1
+            { type: 'left', angle: 20 },
+            { type: 'forward', distance: 80 },
+            
+            // SEGMENT 5
+            { type: 'setheading', angle: 180 },
+            { type: 'forward', distance: 150 }
+        ];
+        
+        let currentSegment = 0;
+        let segmentProgress = 0;
+        let segmentStartX = 0;
+        let segmentStartY = 0;
+        let segmentStartAngle = 0;
+        
+        function startAnimation() {
+            if (animationRunning) return;
+            
+            // Reset
+            animationRunning = true;
+            animationComplete = false;
+            currentSegment = 0;
+            segmentProgress = 0;
+            pathPoints = [];
+            animationStartTime = Date.now();
+            
+            // Starting position
+            carX = -500;
+            carY = 130;
+            carAngle = 0;
+            
+            pathPoints.push({ x: carX, y: carY });
+            
+            document.getElementById('resetBtn').style.display = 'none';
+            
+            // Play audio
+            audioElement.currentTime = 0;
+            audioElement.play().catch(e => console.log('Audio play failed:', e));
+            
+            animate();
+        }
+        
+        function animate() {
+            if (!animationRunning) return;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw roads
+            drawRoads();
+            
+            // Draw path
+            drawPath();
+            
+            // Draw car
+            drawCar(carX, carY, carAngle);
+            
+            // Update subtitle
+            updateSubtitle();
+            
+            // Process current segment
+            if (currentSegment < segments.length) {
+                const segment = segments[currentSegment];
+                
+                if (segment.type === 'right') {
+                    // Turn right = clockwise = negative in turtle (which uses counterclockwise positive)
+                    carAngle -= segment.angle;
+                    currentSegment++;
+                } else if (segment.type === 'left') {
+                    // Turn left = counterclockwise = positive in turtle
+                    carAngle += segment.angle;
+                    currentSegment++;
+                } else if (segment.type === 'setheading') {
+                    carAngle = segment.angle;
+                    currentSegment++;
+                } else if (segment.type === 'forward') {
+                    // Animate forward movement
+                    const speed = 2; // pixels per frame (adjust for speed)
+                    
+                    if (segmentProgress === 0) {
+                        segmentStartX = carX;
+                        segmentStartY = carY;
+                    }
+                    
+                    segmentProgress += speed;
+                    
+                    if (segmentProgress >= segment.distance) {
+                        segmentProgress = segment.distance;
+                    }
+                    
+                    // Calculate new position
+                    // Turtle coordinates: 0° = right, 90° = up, angles go counterclockwise
+                    const angleRad = carAngle * Math.PI / 180;
+                    carX = segmentStartX + segmentProgress * Math.cos(angleRad);
+                    carY = segmentStartY + segmentProgress * Math.sin(angleRad);
+                    
+                    pathPoints.push({ x: carX, y: carY });
+                    
+                    if (segmentProgress >= segment.distance) {
+                        currentSegment++;
+                        segmentProgress = 0;
+                    }
+                }
+                
+                requestAnimationFrame(animate);
+            } else {
+                // Animation complete
+                animationRunning = false;
+                animationComplete = true;
+                document.getElementById('resetBtn').style.display = 'block';
+            }
+        }
+        
+        function resetAnimation() {
+            startAnimation();
+        }
+        
+        function startExperience() {
+            document.getElementById('startBtn').style.display = 'none';
+            startAnimation();
+        }
+        
+        // Show start button on load
+        window.onload = function() {
+            drawRoads();
+            handleResize();
+        };
+        
+        // Handle window resize for mobile responsiveness
+        function handleResize() {
+            const container = document.getElementById('container');
+            const canvas = document.getElementById('canvas');
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            
+            // Mobile or portrait mode
+            if (windowWidth <= 768) {
+                // Set container to fill viewport
+                container.style.width = windowWidth + 'px';
+                container.style.height = windowHeight + 'px';
+                
+                // Scale canvas to fit
+                const scaleX = windowWidth / 1200;
+                const scaleY = windowHeight / 700;
+                const scale = Math.min(scaleX, scaleY);
+                
+                canvas.style.width = (1200 * scale) + 'px';
+                canvas.style.height = (700 * scale) + 'px';
+                canvas.style.margin = 'auto';
+            } else {
+                // Desktop - use original size
+                container.style.width = '1200px';
+                container.style.height = '700px';
+                canvas.style.width = '1200px';
+                canvas.style.height = '700px';
+            }
+        }
+        
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('orientationchange', handleResize);
+    </script>
+</body>
+</html>

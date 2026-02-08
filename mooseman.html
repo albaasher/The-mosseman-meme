@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mooseman Driving</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        
+        #container {
+            background: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        
+        canvas {
+            display: block;
+            background: white;
+        }
+        
+        .text-overlay {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            pointer-events: none;
+            width: 100%;
+        }
+        
+        .text-line1 {
+            font-size: 15px;
+            margin-bottom: 5px;
+        }
+        
+        .text-line2 {
+            font-size: 15px;
+            font-weight: bold;
+        }
+        
+        #resetBtn {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none;
+        }
+        
+        #resetBtn:hover {
+            background: #cc0000;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div class="text-overlay">
+            <div class="text-line1">It look like you about to take us to find the moose man</div>
+            <div class="text-line2">Who the hell is the moose man?</div>
+        </div>
+        <canvas id="canvas" width="1200" height="700"></canvas>
+        <button id="resetBtn" onclick="resetAnimation()">Play Again</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Animation state
+        let animationRunning = false;
+        let animationComplete = false;
+        
+        // Car/turtle state
+        let carX = 0;
+        let carY = 0;
+        let carAngle = 0; // in degrees
+        
+        // Path recording for drawing
+        let pathPoints = [];
+        
+        // Convert canvas coordinates (top-left origin) to turtle coordinates (center origin)
+        function toCanvasX(turtleX) {
+            return turtleX + 600; // canvas width / 2
+        }
+        
+        function toCanvasY(turtleY) {
+            return 350 - turtleY; // canvas height / 2, inverted Y
+        }
+        
+        // Draw the black roads
+        function drawRoads() {
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 15;
+            ctx.lineCap = 'round';
+            
+            // TOP ROAD 1
+            ctx.beginPath();
+            ctx.moveTo(toCanvasX(-550), toCanvasY(50));
+            ctx.lineTo(toCanvasX(-550 + 420), toCanvasY(50));
+            ctx.stroke();
+            
+            // TOP ROAD 2 (angled -40 degrees)
+            ctx.beginPath();
+            ctx.moveTo(toCanvasX(-130), toCanvasY(50));
+            let angle2 = -40 * Math.PI / 180;
+            ctx.lineTo(toCanvasX(-130 + 80 * Math.cos(angle2)), toCanvasY(50 + 80 * Math.sin(angle2)));
+            ctx.stroke();
+            
+            // BOTTOM ROAD 4 (angled 40 degrees)
+            ctx.beginPath();
+            ctx.moveTo(toCanvasX(120), toCanvasY(-150));
+            let angle4 = 40 * Math.PI / 180;
+            ctx.lineTo(toCanvasX(120 + 280 * Math.cos(angle4)), toCanvasY(-150 + 280 * Math.sin(angle4)));
+            ctx.stroke();
+            
+            // BOTTOM ROAD 3
+            ctx.beginPath();
+            ctx.moveTo(toCanvasX(-150), toCanvasY(-150));
+            ctx.lineTo(toCanvasX(-150 + 280), toCanvasY(-150));
+            ctx.stroke();
+            
+            // BOTTOM ROAD 2 (angled 35 degrees)
+            ctx.beginPath();
+            ctx.moveTo(toCanvasX(-260), toCanvasY(-220));
+            let angle2b = 35 * Math.PI / 180;
+            ctx.lineTo(toCanvasX(-260 + 140 * Math.cos(angle2b)), toCanvasY(-220 + 140 * Math.sin(angle2b)));
+            ctx.stroke();
+            
+            // BOTTOM ROAD 1
+            ctx.beginPath();
+            ctx.moveTo(toCanvasX(-520), toCanvasY(-220));
+            ctx.lineTo(toCanvasX(-520 + 270), toCanvasY(-220));
+            ctx.stroke();
+        }
+        
+        // Draw the car (blue square)
+        function drawCar(x, y, angle) {
+            ctx.save();
+            ctx.translate(toCanvasX(x), toCanvasY(y));
+            ctx.rotate(-angle * Math.PI / 180); // negative because canvas Y is inverted
+            
+            ctx.fillStyle = 'blue';
+            ctx.fillRect(-15, -10, 30, 20); // square approximating shapesize(2,3)
+            
+            ctx.restore();
+        }
+        
+        // Draw the red path
+        function drawPath() {
+            if (pathPoints.length < 2) return;
+            
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 15;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            ctx.beginPath();
+            ctx.moveTo(toCanvasX(pathPoints[0].x), toCanvasY(pathPoints[0].y));
+            
+            for (let i = 1; i < pathPoints.length; i++) {
+                ctx.lineTo(toCanvasX(pathPoints[i].x), toCanvasY(pathPoints[i].y));
+            }
+            
+            ctx.stroke();
+        }
+        
+        // Animation segments matching the Python code
+        const segments = [
+            // SEGMENT 1: Go right
+            { type: 'forward', distance: 400 },
+            
+            // SEGMENT 2: Drop down diagonally
+            { type: 'right', angle: 30 },
+            { type: 'forward', distance: 150 },
+            
+            // SEGMENT 2.1
+            { type: 'left', angle: 8 },
+            { type: 'forward', distance: 140 },
+            
+            // SEGMENT 2.2
+            { type: 'right', angle: 30 },
+            { type: 'forward', distance: 60 },
+            
+            // SEGMENT 2.3
+            { type: 'right', angle: 80 },
+            { type: 'forward', distance: 60 },
+            
+            // SEGMENT 2.4
+            { type: 'right', angle: 20 },
+            { type: 'forward', distance: 40 },
+            
+            // SEGMENT 3: Transition to BOTTOM ROAD 3
+            { type: 'setheading', angle: 180 },
+            { type: 'forward', distance: 260 },
+            
+            // SEGMENT 4: Drive along BOTTOM ROAD 3
+            { type: 'left', angle: 20 },
+            { type: 'forward', distance: 100 },
+            
+            // SEGMENT 4.1
+            { type: 'left', angle: 20 },
+            { type: 'forward', distance: 80 },
+            
+            // SEGMENT 5
+            { type: 'setheading', angle: 180 },
+            { type: 'forward', distance: 150 }
+        ];
+        
+        let currentSegment = 0;
+        let segmentProgress = 0;
+        let segmentStartX = 0;
+        let segmentStartY = 0;
+        let segmentStartAngle = 0;
+        
+        function startAnimation() {
+            if (animationRunning) return;
+            
+            // Reset
+            animationRunning = true;
+            animationComplete = false;
+            currentSegment = 0;
+            segmentProgress = 0;
+            pathPoints = [];
+            
+            // Starting position
+            carX = -500;
+            carY = 130;
+            carAngle = 0;
+            
+            pathPoints.push({ x: carX, y: carY });
+            
+            document.getElementById('resetBtn').style.display = 'none';
+            
+            animate();
+        }
+        
+        function animate() {
+            if (!animationRunning) return;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw roads
+            drawRoads();
+            
+            // Draw path
+            drawPath();
+            
+            // Draw car
+            drawCar(carX, carY, carAngle);
+            
+            // Process current segment
+            if (currentSegment < segments.length) {
+                const segment = segments[currentSegment];
+                
+                if (segment.type === 'right') {
+                    carAngle += segment.angle;
+                    currentSegment++;
+                } else if (segment.type === 'left') {
+                    carAngle -= segment.angle;
+                    currentSegment++;
+                } else if (segment.type === 'setheading') {
+                    carAngle = segment.angle;
+                    currentSegment++;
+                } else if (segment.type === 'forward') {
+                    // Animate forward movement
+                    const speed = 2; // pixels per frame (adjust for speed)
+                    
+                    if (segmentProgress === 0) {
+                        segmentStartX = carX;
+                        segmentStartY = carY;
+                    }
+                    
+                    segmentProgress += speed;
+                    
+                    if (segmentProgress >= segment.distance) {
+                        segmentProgress = segment.distance;
+                    }
+                    
+                    // Calculate new position
+                    const angleRad = carAngle * Math.PI / 180;
+                    carX = segmentStartX + segmentProgress * Math.cos(angleRad);
+                    carY = segmentStartY + segmentProgress * Math.sin(angleRad);
+                    
+                    pathPoints.push({ x: carX, y: carY });
+                    
+                    if (segmentProgress >= segment.distance) {
+                        currentSegment++;
+                        segmentProgress = 0;
+                    }
+                }
+                
+                requestAnimationFrame(animate);
+            } else {
+                // Animation complete
+                animationRunning = false;
+                animationComplete = true;
+                document.getElementById('resetBtn').style.display = 'block';
+            }
+        }
+        
+        function resetAnimation() {
+            startAnimation();
+        }
+        
+        // Auto-start on load
+        window.onload = function() {
+            drawRoads();
+            setTimeout(startAnimation, 500);
+        };
+    </script>
+</body>
+</html>
