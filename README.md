@@ -32,3 +32,5 @@ python mooseman.py
 - This version runs on desktop only (no mobile support)
 - Animation speed can be adjusted by changing `car.speed(1)` (1=slowest, 10=fastest)
 - Path can be customized by modifying the segment values (angles and distances)
+
+- ALL THANKS TO CLAUDE AI IT WAS A PAIN BUT THANKS REGARDLESS
