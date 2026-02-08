@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+<title>Mooseman (Subtitles Locked to Car)</title>
+<style>
+body{
+  margin:0;
+  padding:0;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+  background:#f0f0f0;
+  font-family:Arial,sans-serif;
+}
+#container{
+  background:white;
+  box-shadow:0 4px 6px rgba(0,0,0,0.1);
+  position:relative;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+canvas{
+  display:block;
+  background:white;
+  width:auto;
+  height:auto;
+  max-width:100vw;
+  max-height:100vh;
+  aspect-ratio: 1200 / 800;
+}
+.subtitle{
+  position:absolute;
+  background:rgba(0,0,0,.75);
+  color:white;
+  padding:4px 8px;
+  border-radius:4px;
+  font-size:11px;
+  font-weight:bold;
+  pointer-events:none;
+  min-width:80px;
+  max-width:380px;
+  text-align:center;
+  display:none;
+  transform:translateX(-50%);
+  line-height:1.2;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#resetBtn{
+  position:absolute;
+  bottom:20px;
+  left:50%;
+  transform:translateX(-50%);
+  padding:10px 20px;
+  font-size:16px;
+  background:#ff4444;
+  color:white;
+  border:none;
+  border-radius:5px;
+  cursor:pointer;
+  display:none;
+}
+</style>
+</head>
+<body>
+<div id="container">
+<div id="subtitle" class="subtitle"></div>
+<canvas id="canvas" width="1200" height="800"></canvas>
+
+<button id="startBtn" onclick="startExperience()" 
+style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+padding:20px 40px;font-size:20px;background:#ff4444;color:white;
+border:none;border-radius:10px;cursor:pointer;z-index:100;">START</button>
+
+<button id="resetBtn" onclick="resetAnimation()">Play Again</button>
+<audio id="audio" src="VID_20260207_164936_105.mp3"></audio>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const subtitleElement = document.getElementById('subtitle');
+const audioElement = document.getElementById('audio');
+
+const subtitles = [
+{start:2,end:3.3,text:"Let me drive my shit"},
+{start:3.5,end:4.3,text:"Nah bro"},
+{start:4.5,end:5,text:"You good"},
+{start:5.2,end:5.7,text:"You good"},
+{start:5.9,end:6.4,text:"You good"},
+{start:6.5,end:9,text:"I know my route bro, I know my routes"},
+{start:9.5,end:12,text:"It look like you about to take us to find the moose man"},
+{start:12.2,end:14.5,text:"Who the hell is the moose man?"}
+];
+
+let animationStartTime=0, animationRunning=false;
+let carX=-500, carY=180, carAngle=0;
+let pathPoints=[];
+
+function toCanvasX(x){ return x + 600; }
+function toCanvasY(y){ return 400 - y; }
+
+function drawRoads(){
+ctx.strokeStyle="black";ctx.lineWidth=15;ctx.lineCap="round";
+
+ctx.beginPath();
+ctx.moveTo(toCanvasX(-550),toCanvasY(80));
+ctx.lineTo(toCanvasX(-130),toCanvasY(80));
+ctx.stroke();
+
+ctx.beginPath();
+let a=-40*Math.PI/180;
+ctx.moveTo(toCanvasX(-130),toCanvasY(80));
+ctx.lineTo(toCanvasX(-130+80*Math.cos(a)),toCanvasY(80+80*Math.sin(a)));
+ctx.stroke();
+
+ctx.beginPath();
+let b=40*Math.PI/180;
+ctx.moveTo(toCanvasX(120),toCanvasY(-80));
+ctx.lineTo(toCanvasX(120+280*Math.cos(b)),toCanvasY(-80+280*Math.sin(b)));
+ctx.stroke();
+
+ctx.beginPath();
+ctx.moveTo(toCanvasX(-150),toCanvasY(-80));
+ctx.lineTo(toCanvasX(130),toCanvasY(-80));
+ctx.stroke();
+
+ctx.beginPath();
+let c=35*Math.PI/180;
+ctx.moveTo(toCanvasX(-260),toCanvasY(-160));
+ctx.lineTo(toCanvasX(-260+140*Math.cos(c)),toCanvasY(-160+140*Math.sin(c)));
+ctx.stroke();
+
+ctx.beginPath();
+ctx.moveTo(toCanvasX(-520),toCanvasY(-160));
+ctx.lineTo(toCanvasX(-250),toCanvasY(-160));
+ctx.stroke();
+}
+
+function drawCar(x,y,angle){
+ctx.save();
+ctx.translate(toCanvasX(x),toCanvasY(y));
+ctx.rotate(-angle*Math.PI/180);
+ctx.fillStyle="blue";
+ctx.fillRect(-22.5,-15,45,30);
+ctx.restore();
+}
+
+function drawArrow(x,y,angle){
+const size=14;
+ctx.save();
+ctx.translate(x,y);
+ctx.rotate(angle);
+ctx.beginPath();
+ctx.moveTo(0,0);
+ctx.lineTo(-size,size*.6);
+ctx.lineTo(-size,-size*.6);
+ctx.closePath();
+ctx.fill();
+ctx.restore();
+}
+
+function drawPath(){
+if(pathPoints.length<2)return;
+ctx.strokeStyle="red";
+ctx.lineWidth=12;
+ctx.lineCap="round";
+ctx.lineJoin="round";
+
+ctx.beginPath();
+ctx.moveTo(toCanvasX(pathPoints[0].x),toCanvasY(pathPoints[0].y));
+for(let i=1;i<pathPoints.length;i++){
+  ctx.lineTo(toCanvasX(pathPoints[i].x),toCanvasY(pathPoints[i].y));
+}
+ctx.stroke();
+
+ctx.fillStyle="red";
+const spacing=60;
+let carry=0;
+
+for(let i=0;i<pathPoints.length-1;i++){
+  let x1=toCanvasX(pathPoints[i].x), y1=toCanvasY(pathPoints[i].y);
+  let x2=toCanvasX(pathPoints[i+1].x), y2=toCanvasY(pathPoints[i+1].y);
+  let dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy);
+  if(len<1)continue;
+
+  let ang=Math.atan2(dy,dx);
+  let pos=0;
+
+  while(carry+pos+spacing<=len){
+    pos+=spacing;
+    let t=pos/len;
+    drawArrow(x1+dx*t, y1+dy*t, ang);
+  }
+  carry=(carry+len)%spacing;
+}
+}
+
+function updateSubtitle(){
+const t=(Date.now()-animationStartTime)/1000;
+let s=null;
+for(const sub of subtitles){
+  if(t>=sub.start && t<=sub.end){ s=sub; break; }
+}
+if(!s){
+  subtitleElement.style.display="none";
+  return;
+}
+
+subtitleElement.textContent = s.text;
+subtitleElement.style.display = "block";
+
+// Compute car position in canvas space
+const cx = toCanvasX(carX);
+const cy = toCanvasY(carY);
+
+// Get canvas position and scale
+const rect = canvas.getBoundingClientRect();
+const container = document.getElementById('container').getBoundingClientRect();
+const scaleX = rect.width / canvas.width;
+const scaleY = rect.height / canvas.height;
+
+// Calculate position relative to container
+const screenX = (rect.left - container.left) + cx * scaleX;
+const screenY = (rect.top - container.top) + cy * scaleY;
+
+subtitleElement.style.left = screenX + "px";
+subtitleElement.style.top  = (screenY - 35) + "px";
+}
+
+const segments=[
+{type:'forward',distance:400},
+{type:'right',angle:30},{type:'forward',distance:150},
+{type:'left',angle:8},{type:'forward',distance:140},
+{type:'right',angle:30},{type:'forward',distance:60},
+{type:'right',angle:80},{type:'forward',distance:60},
+{type:'right',angle:20},{type:'forward',distance:40},
+{type:'setheading',angle:180},{type:'forward',distance:260},
+{type:'left',angle:20},{type:'forward',distance:100},
+{type:'left',angle:20},{type:'forward',distance:80},
+{type:'setheading',angle:180},{type:'forward',distance:150}
+];
+
+let currentSegment=0, segmentProgress=0, segStartX=0, segStartY=0;
+
+function startAnimation(){
+animationRunning=true;
+currentSegment=0;
+segmentProgress=0;
+pathPoints=[];
+animationStartTime=Date.now();
+
+carX=-500; carY=180; carAngle=0;
+pathPoints.push({x:carX,y:carY});
+
+document.getElementById('resetBtn').style.display='none';
+
+// Start audio from the beginning
+audioElement.currentTime = 0;
+audioElement.play().catch(e => console.log('Audio play failed:', e));
+
+animate();
+}
+
+function animate(){
+if(!animationRunning) return;
+
+ctx.clearRect(0,0,canvas.width,canvas.height);
+drawRoads();
+drawPath();
+drawCar(carX,carY,carAngle);
+updateSubtitle();
+
+if(currentSegment < segments.length){
+  const seg = segments[currentSegment];
+
+  if(seg.type==='right'){
+    carAngle -= seg.angle;
+    currentSegment++;
+  }
+  else if(seg.type==='left'){
+    carAngle += seg.angle;
+    currentSegment++;
+  }
+  else if(seg.type==='setheading'){
+    carAngle = seg.angle;
+    currentSegment++;
+  }
+  else if(seg.type==='forward'){
+    const speed = 1.6;
+
+    if(segmentProgress===0){
+      segStartX = carX;
+      segStartY = carY;
+    }
+
+    segmentProgress += speed;
+    if(segmentProgress >= seg.distance) segmentProgress = seg.distance;
+
+    const rad = carAngle*Math.PI/180;
+    carX = segStartX + segmentProgress*Math.cos(rad);
+    carY = segStartY + segmentProgress*Math.sin(rad);
+    pathPoints.push({x:carX,y:carY});
+
+    if(segmentProgress >= seg.distance){
+      currentSegment++;
+      segmentProgress = 0;
+    }
+  }
+  requestAnimationFrame(animate);
+}else{
+  animationRunning=false;
+  document.getElementById('resetBtn').style.display='block';
+}
+}
+
+function resetAnimation(){ startAnimation(); }
+function startExperience(){
+  document.getElementById('startBtn').style.display='none';
+  startAnimation();
+}
+
+window.onload = function(){
+  drawRoads();
+};
+</script>
+</body>
+</html>
